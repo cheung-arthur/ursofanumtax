@@ -11,15 +11,15 @@ This repository contains a Python implementation of a Kriegspiel Chess simulatio
 
 1. Clone this repository.
 2. Install the required packages:
-pip install -r requirements.txt
+```pip install -r requirements.txt```
 
 
 ## Usage
 
 ### To play as a human player:
 Run:
-python src/main.py --mode human
+```python src/main.py --mode human```
 
 ### To run the Bayesian Agent simulation:
 Run:
-python src/main.py --mode agent
+```python src/main.py --mode agent```
