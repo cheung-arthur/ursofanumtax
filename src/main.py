@@ -21,7 +21,7 @@ def play_kriegspiel(stockfish_path: str, use_dataset_init: bool = False, max_sta
 
     while not umpire.game_over:
         current_color = umpire.get_active_color()
-
+s
         if current_color == "White":
             # White: partial-info agent
             move = white_agent.choose_move()
