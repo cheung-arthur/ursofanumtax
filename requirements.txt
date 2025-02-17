@@ -1,2 +1,4 @@
-python-chess
+chess
+pickle
 numpy
+matplotlib

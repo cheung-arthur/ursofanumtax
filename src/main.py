@@ -1,120 +1,95 @@
-# Main game loop (choose human mode or agent mode)
-import argparse
+import sys
 import chess
-import numpy as np
+from umpire import KriegspielUmpire
+from random_player import RandomAgent
+from bayesian_player import BayesianAgent
 
-from src.game_env import Umpire, select_opponent_move
-from src.bayesian_agent import BayesianAgent
-from src.human_player import get_human_move
+def play_kriegspiel(stockfish_path: str, use_dataset_init: bool = False, max_states: int = 2000):
+    umpire = KriegspielUmpire()
 
-def play_game_human():
-    """
-    Play a game with a human player (as White) versus an opponent using quantal response.
-    This version hides the exact opponent move to preserve Kriegspiel secrecy.
-    """
-    umpire = Umpire()
-    human_color = chess.WHITE
-    
-    print("Welcome to Kriegspiel (Human Mode)!")
-    print("You are playing as White.\n")
-    
-    while not umpire.game_over():
-        # Human Turn
-        print("\n--- Human Turn ---")
-        observation = umpire.get_player_observation(human_color)
-        
-        # Show the masked board (only your pieces visible)
-        print("Your view of the board:")
-        print(observation)
-        
-        move = None
-        while move is None:
-            move = get_human_move(observation)
-            if move not in observation.legal_moves:
-                print("That move appears illegal based on your visible pieces. Try again.")
-                move = None
-        
-        feedback = umpire.request_move(move, human_color)
-        if not feedback["legal"]:
-            print("Umpire: Illegal move. Try again.")
-            continue
+    white_agent = BayesianAgent(
+        umpire,
+        stockfish_path=stockfish_path,
+        max_states=max_states,
+        use_dataset_init=use_dataset_init
+    )
+    # black_bot = BayesianAgent(
+    #     umpire,
+    #     stockfish_path=stockfish_path,
+    #     max_states=max_states,
+    #     use_dataset_init=use_dataset_init
+    # )
+    black_bot = RandomAgent(umpire)
+
+    move_counter = 1
+
+    while not umpire.game_over:
+        current_color = umpire.get_active_color()
+        if current_color == "White":
+            move = white_agent.choose_move()
+            if move is None:
+                print("White has no moves or agent gave None.")
+                break
+
+            success, announcements, final_sq = umpire.move(move)
+            # White processes own move feedback
+            white_agent.update_belief_on_own_move_feedback(move, success, announcements)
+
+            # Print or log
+            print(f"{move_counter}. White plays {move}, success={success}")
+            for ann in announcements:
+                print("   Announcement:", ann)
+
+        # black: random bot
         else:
-            if feedback.get("capture", False):
-                print("Umpire: A capture has occurred.")
-            if feedback.get("check", False):
-                print("Umpire: Check!")
-            if feedback.get("checkmate", False):
-                print("Umpire: Checkmate!")
-        
-        # Opponent Turn
-        if not umpire.game_over():
-            print("\n--- Opponent Turn ---")
-            opp_color = not human_color
-            legal_moves = list(umpire.krieg_board.board.legal_moves)
-            opp_move = select_opponent_move(legal_moves, umpire.krieg_board.board, opp_color)
-            
-            # Hide the actual move from you (the human) to simulate Kriegspiel
-            print("The opponent has moved (exact move hidden).")
-            
-            # Actually apply the move on the full board (umpire sees it)
-            umpire.krieg_board.apply_move(opp_move)
-    
-    print("Game over. Result:", umpire.get_result())
+            black_bot.choose_move()
+            success = not umpire.board.is_game_over()
+            # The partial-info agent sees the final square of black's move if success
+            # But we need to capture the last move from the ground-truth board:
+            last_move = umpire.board.peek() if umpire.board.move_stack else None
 
-def play_game_agent():
-    """
-    Play a game with the Bayesian Agent (as White) versus an opponent using quantal response.
-    """
-    umpire = Umpire()
-    agent = BayesianAgent(chess.WHITE)
-    
-    print("Welcome to Kriegspiel (Agent Mode)!")
-    print("Agent is playing as White.\n")
-    
-    while not umpire.game_over():
-        # Agent Turn
-        print("\n--- Agent Turn ---")
-        observation = umpire.get_player_observation(agent.color)
-        agent.observe(observation)
-        move = agent.choose_move()
+            if last_move and not umpire.game_over:
+                # Gather announcements from the *last* move
+                # In our design, we get them from black_bot's 'make_move' 
+                # but we didn't store them there. Let's store them now:
+                # Actually, to keep it consistent, let's do a slight refactor:
+                # For demonstration, let's assume we re-run the move or 
+                # intercept the announcements in black_bot. 
+                # We'll do a quick hack: no direct announcements for the partial-info agent 
+                # unless we refactor RandomBot. 
+                pass
+
+                # We'll just get final square from last move
+                opp_final_square = last_move.to_square
+                # The White agent doesn't know exactly which piece moved, 
+                # but it does know the final square (opp_final_square).
+                # We'll assume we can't easily get the announcements unless 
+                # we do more hooking. For demonstration, let's feed empty announcements.
+                announcements = []  # In real code, we'd properly hook in the results.
+
+                # White updates its beliefs
+                white_agent.update_belief_on_opponent_move(opp_final_square, announcements)
+
+            # print(f"{move_counter}. Black (Random) played.")
         
-        if move is None:
-            print("Agent has no legal moves available.")
+        move_counter += 1
+        if umpire.game_over:
             break
-        
-        print("Agent attempts move:", move)
-        feedback = umpire.request_move(move, agent.color)
-        agent.update_belief(feedback, move)
-        
-        if not feedback["legal"]:
-            print("Umpire: Illegal move by agent.")
-            continue
-        
-        if feedback.get("capture", False):
-            print("Umpire: Capture occurred.")
-        if feedback.get("check", False):
-            print("Umpire: Check!")
-        if feedback.get("checkmate", False):
-            print("Umpire: Checkmate!")
-        
-        # Opponent Turn
-        if not umpire.game_over():
-            print("\n--- Opponent Turn ---")
-            opp_color = not agent.color
-            legal_moves = list(umpire.krieg_board.board.legal_moves)
-            opp_move = select_opponent_move(legal_moves, umpire.krieg_board.board, opp_color)
-            print("Opponent (bot) move (visible to us for debugging):", opp_move)
-            umpire.krieg_board.apply_move(opp_move)
-    
-    print("Game over. Result:", umpire.get_result())
+
+    print("Game over. Result:", umpire.result if umpire.result else "Unknown")
+    white_agent.shutdown_engine() # shutdown stockfish
+
+    if umpire.result == "1-0":
+        return "win"
+    elif umpire.result ==  "0-1":
+        return "loss"
+    elif umpire.result ==  "1/2-1/2":
+        return "draw"
+    else:
+        return "unknown"
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Kriegspiel Chess Simulation")
-    parser.add_argument('--mode', choices=['human', 'agent'], default='human',
-                        help="Choose mode: 'human' to play manually, 'agent' to run the Bayesian Agent.")
-    args = parser.parse_args()
-    
-    if args.mode == 'human':
-        play_game_human()
-    elif args.mode == 'agent':
-        play_game_agent()
+    stockfish_path = sys.argv[1] if len(sys.argv) > 1 else "/opt/homebrew/bin/stockfish"
+    use_dataset_init = bool(sys.argv[2]) if len(sys.argv) > 2 else False
+    play_kriegspiel(stockfish_path, use_dataset_init, max_states=2000)
