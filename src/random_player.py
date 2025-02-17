@@ -5,7 +5,7 @@ class RandomAgent:
     def __init__(self, umpire: KriegspielUmpire):
         self.umpire = umpire
 
-    def make_move(self):
+    def choose_move(self):
         if self.umpire.game_over:
             return
 
@@ -16,5 +16,8 @@ class RandomAgent:
 
         move = random.choice(legal_moves)
         success, announcements, final_square = self.umpire.move(move)
+        print(f"Black plays {move}, success={success}")
+        for ann in announcements:
+            print("   Announcement:", ann)
         # We could print or log the announcements if desired
         # For now, let's just ignore them in RandomBot

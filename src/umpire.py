@@ -3,7 +3,6 @@ import chess.engine
 
 class KriegspielUmpire:
     def __init__(self):
-        # Start from a normal chess initial position
         self.board = chess.Board()
         self.game_over = False
         self.result = None

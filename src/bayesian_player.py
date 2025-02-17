@@ -264,10 +264,9 @@ class BayesianAgent:
         board_for_engine = best_state["board"].copy()
 
         # Use Stockfish
-        with self.engine.analysis(board_for_engine, limit=chess.engine.Limit(depth=12)) as analysis:
-            info = analysis.get()
-            best_move = info.move
-        return best_move
+        result = self.engine.play(board_for_engine, limit=chess.engine.Limit(depth=12))
+        return result.move
+    
 
     def shutdown_engine(self):
         self.engine.quit()

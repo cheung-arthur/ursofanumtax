@@ -5,28 +5,29 @@ from random_player import RandomAgent
 from bayesian_player import BayesianAgent
 
 def play_kriegspiel(stockfish_path: str, use_dataset_init: bool = False, max_states: int = 2000):
-    # 1. Create umpire
     umpire = KriegspielUmpire()
 
-    # 2) Create White (PartialInfoAgent) and Black (RandomBot)
     white_agent = BayesianAgent(
         umpire,
         stockfish_path=stockfish_path,
         max_states=max_states,
         use_dataset_init=use_dataset_init
     )
+    # black_bot = BayesianAgent(
+    #     umpire,
+    #     stockfish_path=stockfish_path,
+    #     max_states=max_states,
+    #     use_dataset_init=use_dataset_init
+    # )
     black_bot = RandomAgent(umpire)
 
     move_counter = 1
 
     while not umpire.game_over:
         current_color = umpire.get_active_color()
-s
         if current_color == "White":
-            # White: partial-info agent
             move = white_agent.choose_move()
             if move is None:
-                # no legal moves or fallback
                 print("White has no moves or agent gave None.")
                 break
 
@@ -39,9 +40,9 @@ s
             for ann in announcements:
                 print("   Announcement:", ann)
 
+        # black: random bot
         else:
-            # Black: random bot
-            black_bot.make_move()
+            black_bot.choose_move()
             success = not umpire.board.is_game_over()
             # The partial-info agent sees the final square of black's move if success
             # But we need to capture the last move from the ground-truth board:
@@ -69,19 +70,16 @@ s
                 # White updates its beliefs
                 white_agent.update_belief_on_opponent_move(opp_final_square, announcements)
 
-            print(f"{move_counter}. Black (Random) played.")
+            # print(f"{move_counter}. Black (Random) played.")
         
         move_counter += 1
         if umpire.game_over:
             break
 
     print("Game over. Result:", umpire.result if umpire.result else "Unknown")
-    # Shutdown Stockfish
-    white_agent.shutdown_engine()
+    white_agent.shutdown_engine() # shutdown stockfish
 
 if __name__ == "__main__":
-    # Run with arguments, or just set them here:
-    # e.g. python main.py "/usr/local/bin/stockfish" True
     stockfish_path = sys.argv[1] if len(sys.argv) > 1 else "/opt/homebrew/bin/stockfish"
     use_dataset_init = bool(sys.argv[2]) if len(sys.argv) > 2 else False
     play_kriegspiel(stockfish_path, use_dataset_init, max_states=2000)
