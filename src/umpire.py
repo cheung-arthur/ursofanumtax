@@ -88,11 +88,9 @@ class KriegspielUmpire:
             elif self.board.is_stalemate():
                 announcements.append("Stalemate")
             elif self.board.is_insufficient_material():
-                announcements.append("draw by insufficient force")
+                announcements.append("Draw by insufficient force")
             elif self.board.can_claim_draw():
-                # Could be 50-move or repetition, etc.
-                # For demonstration, let's just say "draw"
-                announcements.append("draw")
+                announcements.append("Draw by repetition")
 
         # 6. "White to move" or "Black to move"
         if not self.game_over:

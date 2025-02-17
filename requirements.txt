@@ -1,0 +1,4 @@
+chess
+pickle
+numpy
+matplotlib

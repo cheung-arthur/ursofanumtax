@@ -10,7 +10,7 @@ class BayesianAgent:
                  stockfish_path: str, 
                  max_states: int = 2000,
                  use_dataset_init: bool = False,
-                 dataset_file: str = "init_belief_states.pickle"):
+                 dataset_file: str = "belief_states_cpts.pickle"):
         """
         If use_dataset_init=True, we load our initial belief states
         from the specified pickle file (dataset_file).
@@ -266,7 +266,6 @@ class BayesianAgent:
         # Use Stockfish
         result = self.engine.play(board_for_engine, limit=chess.engine.Limit(depth=12))
         return result.move
-    
 
     def shutdown_engine(self):
         self.engine.quit()

@@ -79,6 +79,16 @@ def play_kriegspiel(stockfish_path: str, use_dataset_init: bool = False, max_sta
     print("Game over. Result:", umpire.result if umpire.result else "Unknown")
     white_agent.shutdown_engine() # shutdown stockfish
 
+    if umpire.result == "1-0":
+        return "win"
+    elif umpire.result ==  "0-1":
+        return "loss"
+    elif umpire.result ==  "1/2-1/2":
+        return "draw"
+    else:
+        return "unknown"
+
+
 if __name__ == "__main__":
     stockfish_path = sys.argv[1] if len(sys.argv) > 1 else "/opt/homebrew/bin/stockfish"
     use_dataset_init = bool(sys.argv[2]) if len(sys.argv) > 2 else False
