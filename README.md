@@ -102,6 +102,13 @@ From the valid games, we compute prior probabilities of each piece (e.g., white 
 
 We generated heatmaps for all 12 piece-color combinations (White Pawn, White Knight, …, Black King) to visualize these probabilities. These heatmaps appear in our documentation and illustrate how frequently pieces occur on certain squares from the training data.
 
+![White Pawn CPT](fig/white_pawn.png) | ![White Knight CPT](fig/white_knight.png)
+![White Bishop CPT](fig/white_bishop.png) | ![White Rook CPT](fig/white_rook.png)
+![White Queen CPT](fig/white_queen.png)| ![White King CPT](fig/white_king.png)
+![Black Pawn CPT](fig/black_pawn.png) | ![Black Knight CPT](fig/black_knight.png)
+![Black Bishop CPT](fig/black_bishop.png) | ![Black Rook CPT](fig/black_rook.png)
+![Black Queen CPT](fig/black_queen.png) | ![Black King CPT](fig/black_king.png)
+
 ---
 
 ## Training
