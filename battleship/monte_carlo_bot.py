@@ -1,194 +1,162 @@
 import random
-import time
 
 class MonteCarloBot:
-    def __init__(self, board_size=10, simulation_iterations=10000):
+    def __init__(self, board_size=10, iterations=1000):
         self.board_size = board_size
-        # '.' = unknown, 'M' = miss, 'H' = hit, 'S' = sunk.
+        self.iterations = iterations
+        # Grid: '.' for unknown, 'M' for miss, 'H' for hit (unsunk), 'S' for sunk.
         self.grid = [['.' for _ in range(board_size)] for _ in range(board_size)]
-        self.remaining_ships = [5, 4, 3, 3, 2]
-        self.simulation_iterations = simulation_iterations
+        self.unknown_cells = [(r, c) for r in range(board_size) for c in range(board_size)]
+        # The standard Battleship ships: sizes 5, 4, 3, 3, and 2.
+        self.remaining_ship_sizes = [5, 4, 3, 3, 2]
 
     def update_knowledge(self, coord, result):
         r, c = coord
+        if coord in self.unknown_cells:
+            self.unknown_cells.remove(coord)
         if result == "miss":
             self.grid[r][c] = 'M'
         elif result == "hit":
             self.grid[r][c] = 'H'
         elif result == "hit and sunk":
-            self.grid[r][c] = 'H'
-            ship_size = self.infer_sunk_ship_size(coord)
-            if ship_size in self.remaining_ships:
-                self.remaining_ships.remove(ship_size)
-            self.mark_sunk_ship(coord)
+            # Mark this cell as sunk and update any contiguous hit cells as sunk.
+            self.grid[r][c] = 'S'
+            sunk_cells = self._get_sunk_group(coord)
+            ship_size = len(sunk_cells)
+            # Remove one occurrence of the ship size that was sunk.
+            if ship_size in self.remaining_ship_sizes:
+                self.remaining_ship_sizes.remove(ship_size)
+            # Otherwise, if the detected sunk group doesn't match exactly one of the expected sizes,
+            # we leave the list unchanged (this is unlikely in standard Battleship).
 
-    def infer_sunk_ship_size(self, coord):
-        visited = set()
-        def dfs(r, c):
-            if (r, c) in visited:
-                return 0
-            if r < 0 or r >= self.board_size or c < 0 or c >= self.board_size:
-                return 0
-            if self.grid[r][c] != 'H':
-                return 0
-            visited.add((r, c))
-            return (1 + dfs(r+1, c) + dfs(r-1, c)
-                      + dfs(r, c+1) + dfs(r, c-1))
+    def choose_move(self):
+        # If no remaining ships, fall back to a random unknown cell.
+        if not self.remaining_ship_sizes:
+            return random.choice(self.unknown_cells) if self.unknown_cells else None
 
-        size = dfs(*coord)
-        # If only a single cell is hit, default to 2 (edge case).
-        return size if size > 1 else 2
+        # Build a probability map (2D array) for each board cell.
+        prob = [[0 for _ in range(self.board_size)] for _ in range(self.board_size)]
+        valid_configurations = 0
 
-    def mark_sunk_ship(self, coord):
-        stack = [coord]
-        visited = set()
-        while stack:
-            r, c = stack.pop()
-            if (r, c) in visited:
+        # For simulation, work with the remaining ship sizes in descending order.
+        ship_sizes = sorted(self.remaining_ship_sizes, reverse=True)
+
+        # Precompute candidate placements for each ship size.
+        candidate_options = {}
+        for s in ship_sizes:
+            candidate_options[s] = self._get_candidate_placements(s)
+
+        # Monte Carlo iterations: try to build a complete configuration.
+        for _ in range(self.iterations):
+            configuration = []
+            used = set()  # Cells already occupied by a placed ship.
+            valid = True
+            for s in ship_sizes:
+                # From the candidate placements for ship size s, choose only those that do not
+                # conflict with already used cells.
+                valid_candidates = [
+                    placement for placement in candidate_options[s]
+                    if not set(placement) & used
+                ]
+                if not valid_candidates:
+                    valid = False
+                    break
+                placement = random.choice(valid_candidates)
+                configuration.append(placement)
+                used.update(placement)
+            if not valid:
                 continue
-            visited.add((r, c))
-            if self.grid[r][c] == 'H':
-                self.grid[r][c] = 'S'
-                for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:
-                    nr, nc = r + dr, c + dc
-                    if 0 <= nr < self.board_size and 0 <= nc < self.board_size:
-                        if self.grid[nr][nc] == 'H':
-                            stack.append((nr, nc))
+            # Check that every known "hit" (unsunk) is covered by at least one ship in this configuration.
+            if not self._configuration_covers_hits(configuration):
+                continue
 
-    def get_possible_placements(self, ship_size):
+            # Valid configuration – add its contributions to the probability map.
+            valid_configurations += 1
+            for placement in configuration:
+                for (r, c) in placement:
+                    prob[r][c] += 1
+
+        # If no valid configuration was found in the given iterations, fall back to a random unknown cell.
+        if valid_configurations == 0:
+            return random.choice(self.unknown_cells) if self.unknown_cells else None
+
+        # Among unknown cells, choose the one with the highest probability.
+        best_prob = -1
+        best_cells = []
+        for (r, c) in self.unknown_cells:
+            cell_prob = prob[r][c] / valid_configurations
+            if cell_prob > best_prob:
+                best_prob = cell_prob
+                best_cells = [(r, c)]
+            elif cell_prob == best_prob:
+                best_cells.append((r, c))
+        return random.choice(best_cells) if best_cells else None
+
+    def _get_candidate_placements(self, ship_size):
+        """
+        Generate all candidate placements for a ship of a given size that do not conflict with
+        known misses or sunk cells.
+        """
         placements = []
-        n = self.board_size
-        # Horizontal
-        for r in range(n):
-            for c in range(n - ship_size + 1):
-                placement = [(r, c+i) for i in range(ship_size)]
-                if self.is_placement_valid(placement):
-                    placements.append(placement)
-        # Vertical
-        for c in range(n):
-            for r in range(n - ship_size + 1):
-                placement = [(r+i, c) for i in range(ship_size)]
-                if self.is_placement_valid(placement):
-                    placements.append(placement)
+        for r in range(self.board_size):
+            for c in range(self.board_size):
+                # Horizontal placement.
+                if c + ship_size <= self.board_size:
+                    placement = [(r, c + i) for i in range(ship_size)]
+                    if self._placement_is_valid(placement):
+                        placements.append(placement)
+                # Vertical placement.
+                if r + ship_size <= self.board_size:
+                    placement = [(r + i, c) for i in range(ship_size)]
+                    if self._placement_is_valid(placement):
+                        placements.append(placement)
         return placements
 
-    def is_placement_valid(self, placement):
+    def _placement_is_valid(self, placement):
+        """
+        A placement is valid if none of its cells conflict with known misses ('M') or sunk cells ('S').
+        Hits ('H') and unknown cells ('.') are allowed.
+        """
         for (r, c) in placement:
-            # 'M' => definitely no ship here
-            if self.grid[r][c] == 'M':
-                return False
-            # If 'S', that’s already a sunk ship segment
-            # so no other ship can be there
-            if self.grid[r][c] == 'S':
+            if self.grid[r][c] in ['M', 'S']:
                 return False
         return True
 
-    def run_simulation(self, time_limit=3.0):
-        n = self.board_size
-        square_frequencies = [[0 for _ in range(n)] for _ in range(n)]
-        valid_configurations = 0
-
-        # Precompute possible placements
-        possible_placements_for_ship = {}
-        for ship_size in self.remaining_ships:
-            placements = self.get_possible_placements(ship_size)
-            possible_placements_for_ship[ship_size] = placements
-
-        start_time = time.time()
-        iterations = 0
-
-        while time.time() - start_time < time_limit:
-            iterations += 1
-            configuration = []
-            used_cells = set()
-            valid_configuration = True
-
-            for ship_size in self.remaining_ships:
-                placements = possible_placements_for_ship.get(ship_size, [])
-                if not placements:
-                    valid_configuration = False
-                    break
-                valid_placements = [
-                    p for p in placements
-                    if not any(cell in used_cells for cell in p)
-                ]
-                if not valid_placements:
-                    valid_configuration = False
-                    break
-                chosen = random.choice(valid_placements)
-                configuration.append(chosen)
-                used_cells.update(chosen)
-
-            if not valid_configuration:
-                continue
-
-            # Ensure all 'H' cells are covered by at least one chosen ship
-            hits_required = [
-                (r, c) for r in range(n) for c in range(n)
-                if self.grid[r][c] == 'H'
-            ]
-            if not all(
-                any(hit in ship for ship in configuration)
-                for hit in hits_required
-            ):
-                continue
-
-            # If it passes, count it and update frequencies
-            valid_configurations += 1
-            for ship in configuration:
-                for (r, c) in ship:
-                    square_frequencies[r][c] += 1
-
-        # Normalize
-        if valid_configurations > 0:
-            for r in range(n):
-                for c in range(n):
-                    square_frequencies[r][c] /= valid_configurations
-
-        return square_frequencies, valid_configurations, iterations
-
-    def choose_move(self, time_limit=3.0):
-        frequencies, valid_configs, iterations = self.run_simulation(time_limit=time_limit)
-        n = self.board_size
-        best_freq = -1
-        best_moves = []
-
-        for r in range(n):
-            for c in range(n):
-                if self.grid[r][c] == '.':
-                    if frequencies[r][c] > best_freq:
-                        best_freq = frequencies[r][c]
-                        best_moves = [(r, c)]
-                    elif frequencies[r][c] == best_freq:
-                        best_moves.append((r, c))
-
-        # Now call display_heatmap
-        self.display_heatmap(frequencies, best_moves, valid_configs, iterations)
-        if best_moves:
-            # For example, choose randomly among the top squares:
-            return random.choice(best_moves)
-        else:
-            # No unknown cells left
-            return None
-
-    def display_heatmap(self, frequencies, best_moves, valid_configs, iterations):
+    def _configuration_covers_hits(self, configuration):
         """
-        Display a terminal heat map of probabilities.
+        Check that every cell in the grid marked as a 'H' (hit) is covered by at least one ship
+        in the current configuration.
         """
-        print("Heatmap of probabilities:")
-        n = self.board_size
-        header = "   " + " ".join([chr(ord('A') + c) for c in range(n)])
-        print(header)
-        for r in range(n):
-            row_str = f"{r+1:2} "
-            for c in range(n):
-                val = frequencies[r][c]
-                cell_str = f"{val:.2f}"
-                if (r, c) in best_moves:
-                    # highlight best moves
-                    cell_str = "[" + cell_str + "]"
-                else:
-                    cell_str = " " + cell_str + " "
-                row_str += cell_str
-            print(row_str)
-        print(f"Valid configurations: {valid_configs}, Iterations: {iterations}")
+        covered = set()
+        for placement in configuration:
+            covered.update(placement)
+        for r in range(self.board_size):
+            for c in range(self.board_size):
+                if self.grid[r][c] == 'H' and (r, c) not in covered:
+                    return False
+        return True
+
+    def _get_sunk_group(self, coord):
+        """
+        Given a coordinate that just received a "hit and sunk" result, perform a DFS to collect
+        all contiguous cells that are marked as hit ('H') or sunk ('S'). Also, mark all these cells
+        as sunk ('S').
+        """
+        stack = [coord]
+        group = set()
+        while stack:
+            cell = stack.pop()
+            if cell in group:
+                continue
+            r, c = cell
+            if self.grid[r][c] in ['H', 'S']:
+                group.add(cell)
+                # Mark as sunk.
+                self.grid[r][c] = 'S'
+                # Check neighbors (up, down, left, right).
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < self.board_size and 0 <= nc < self.board_size:
+                        if self.grid[nr][nc] in ['H', 'S'] and (nr, nc) not in group:
+                            stack.append((nr, nc))
+        return group
