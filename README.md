@@ -197,3 +197,5 @@ Below are some key takeaways:
 
 Overall, while the HMM-based bots did not achieve top performance in these tests, they still demonstrate an approach that can be enhanced with additional sampling, refined constraints, or improved data integration. The **MonteCarloHeuristicsBot**’s strong results highlight how focusing on feasible ship placements each turn can be both conceptually simpler and more effective under our current constraints.
 
+## Acknowledgements
+- _cliambrown_ on Github provided the framework and psuedocode for the Heuristic Model [here](https://cliambrown.com/battleship/), as well as the dataset for which we used to trian our empirical HMM model.
