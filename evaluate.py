@@ -1,7 +1,9 @@
 import sys
 from battleship.board import Board
 from battleship.random_bot import RandomBot
-from battleship.monte_carlo_bot import MonteCarloBot
+from battleship.monte_carlo_heuristics_bot import MonteCarloHeuristicsBot
+from battleship.monte_carlo_hmm_bot import MonteCarloHMMBot
+from battleship.empirical_hmm_bot import EmpiricalHMMBot
 
 def simulate_game(bot_class):
     """Simulates a single game for a given bot class and returns the number of guesses."""
@@ -39,7 +41,9 @@ def main():
     # List of bots to evaluate: (name, bot class)
     bots = [
         ("RandomBot", RandomBot),
-        ("MonteCarloBot", MonteCarloBot),
+        ("MonteCarloHeuristicsBot", MonteCarloHeuristicsBot),
+        ("MonteCarloHMMBot", MonteCarloHMMBot),
+        ("EmpiricalHMMBot", EmpiricalHMMBot)
     ]
 
     # Run evaluation for each bot and print average guesses.

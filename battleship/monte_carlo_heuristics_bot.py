@@ -1,6 +1,6 @@
 import random
 
-class MonteCarloBot:
+class MonteCarloHeuristicsBot:
     def __init__(self, board_size=10, iterations=1000):
         self.board_size = board_size
         self.iterations = iterations
@@ -26,19 +26,18 @@ class MonteCarloBot:
             # Remove one occurrence of the ship size that was sunk.
             if ship_size in self.remaining_ship_sizes:
                 self.remaining_ship_sizes.remove(ship_size)
-            # Otherwise, if the detected sunk group doesn't match exactly one of the expected sizes,
-            # we leave the list unchanged (this is unlikely in standard Battleship).
 
     def choose_move(self):
         # If no remaining ships, fall back to a random unknown cell.
         if not self.remaining_ship_sizes:
+            print("UNKNOWN PROBS, IMMA CHOOSE RANDOM")
             return random.choice(self.unknown_cells) if self.unknown_cells else None
 
         # Build a probability map (2D array) for each board cell.
         prob = [[0 for _ in range(self.board_size)] for _ in range(self.board_size)]
         valid_configurations = 0
 
-        # For simulation, work with the remaining ship sizes in descending order.
+        # Work with the remaining ship sizes in descending order.
         ship_sizes = sorted(self.remaining_ship_sizes, reverse=True)
 
         # Precompute candidate placements for each ship size.
@@ -52,8 +51,6 @@ class MonteCarloBot:
             used = set()  # Cells already occupied by a placed ship.
             valid = True
             for s in ship_sizes:
-                # From the candidate placements for ship size s, choose only those that do not
-                # conflict with already used cells.
                 valid_candidates = [
                     placement for placement in candidate_options[s]
                     if not set(placement) & used
@@ -76,21 +73,42 @@ class MonteCarloBot:
                 for (r, c) in placement:
                     prob[r][c] += 1
 
-        # If no valid configuration was found in the given iterations, fall back to a random unknown cell.
+        # If no valid configuration was found, fall back to a random unknown cell.
         if valid_configurations == 0:
             return random.choice(self.unknown_cells) if self.unknown_cells else None
 
-        # Among unknown cells, choose the one with the highest probability.
+        # Normalize the heatmap.
+        normalized_heatmap = [
+            [prob[r][c] / valid_configurations for c in range(self.board_size)]
+            for r in range(self.board_size)
+        ]
+        # Print the heatmap to the terminal.
+        self.print_heatmap(normalized_heatmap)
+
+        # Choose the unknown cell with the highest probability.
         best_prob = -1
         best_cells = []
         for (r, c) in self.unknown_cells:
-            cell_prob = prob[r][c] / valid_configurations
+            cell_prob = normalized_heatmap[r][c]
             if cell_prob > best_prob:
                 best_prob = cell_prob
                 best_cells = [(r, c)]
             elif cell_prob == best_prob:
                 best_cells.append((r, c))
+            
         return random.choice(best_cells) if best_cells else None
+
+    def print_heatmap(self, heatmap):
+        """Prints the heatmap as a grid of normalized probabilities."""
+        print("Heatmap:")
+        # Print column headers
+        header = "    " + " ".join(f"{chr(ord('A') + c):>5}" for c in range(self.board_size))
+        print(header)
+        for r, row in enumerate(heatmap):
+            # Format each cell's probability to two decimal places.
+            row_str = " ".join(f"{cell:5.2f}" for cell in row)
+            print(f"{r+1:2}  {row_str}")
+        print()  # extra newline for readability
 
     def _get_candidate_placements(self, ship_size):
         """

@@ -2,12 +2,17 @@ import sys
 from battleship.board import Board
 from battleship.game import Game       
 from battleship.random_bot import RandomBot
-from battleship.monte_carlo_bot import MonteCarloBot
+from battleship.monte_carlo_heuristics_bot import MonteCarloHeuristicsBot
+from battleship.monte_carlo_hmm_bot import MonteCarloHMMBot
+from battleship.empirical_hmm_bot import EmpiricalHMMBot
 from battleship.gui import run_gui      
+
 
 BOT_MAP = {
     'random': RandomBot,
-    'montecarlo': MonteCarloBot
+    'montecarlo': MonteCarloHeuristicsBot,
+    'montecarlohmm':  MonteCarloHMMBot,
+    'hmm': EmpiricalHMMBot
 }
 
 def play_bots(bot_names):
