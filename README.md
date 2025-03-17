@@ -99,13 +99,6 @@ We use a dataset of _2,030,021 battleship games_ publically provided by _cliambr
 
 The data was obtained by games played by users on _cliambrown_'s battleship website, as well as games played by AI models _cliambrown_ created.
 
-A sample game from the dataset might look like:
-
-```
-WRITE HERE
-
-```
-
 During preprocessing in this exploration notebook, we load the raw CSV data and then combine (or “group”) all rows that refer to the same board square so that we can analyze them as one aggregated entry. 
 
 The dataset contains multiple rows for the same squares—this usually happens when the data includes different conditions, runs, or configurations that nonetheless map back to the same physical position on the board. 
